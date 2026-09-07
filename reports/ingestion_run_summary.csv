@@ -1,0 +1,7 @@
+dataset,source_file,status,records_read,records_bronze,records_silver,records_quarantined,execution_time_s
+taxi_zone_lookup,taxi_zone_lookup.csv,SUCCESS,265,265,265,0,2.537
+weather,weather.csv,SUCCESS,8784,8784,8784,0,0.924
+air_quality,air_quality.csv,SUCCESS,8139551,8139551,8139551,0,24.988
+tripdata,yellow_tripdata_2024-01.parquet,SUCCESS,2964624,2964624,2964624,0,14.157
+tripdata,yellow_tripdata_2024-02.parquet,SUCCESS,3007526,3007526,3007524,2,13.419
+tripdata,yellow_tripdata_2024-03.parquet,SUCCESS,3582628,3582628,3582628,0,14.424

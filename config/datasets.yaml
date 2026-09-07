@@ -1,0 +1,246 @@
+# configuration for dataset
+datasets:
+  # taxi tripdata dataset
+  tripdata:
+    format: parquet
+    raw_path: "data/raw/tripdata/*.parquet"
+    schema_version: "1.0"
+
+    expected_columns:
+      - VendorID
+      - tpep_pickup_datetime
+      - tpep_dropoff_datetime
+      - passenger_count
+      - trip_distance
+      - RatecodeID
+      - PULocationID
+      - DOLocationID
+      - payment_type
+      - fare_amount
+      - total_amount
+
+    column_mapping:
+      VendorID: vendor_id
+      tpep_pickup_datetime: pickup_timestamp
+      tpep_dropoff_datetime: dropoff_timestamp
+      RatecodeID: ratecode_id
+      PULocationID: pickup_location_id
+      DOLocationID: dropoff_location_id
+
+    dtype_overrides:
+      vendor_id: int
+      pickup_timestamp: timestamp
+      dropoff_timestamp: timestamp
+      passenger_count: int
+      trip_distance: double
+      ratecode_id: int
+      pickup_location_id: int
+      dropoff_location_id: int
+      payment_type: int
+      fare_amount: double
+      total_amount: double
+
+    # generated trip_id
+    primary_key:
+      - trip_id
+
+    partition_by:
+      - pickup_year
+      - pickup_month
+
+    write_mode: append
+
+    numeric_rules:
+      trip_distance:
+        min: 0
+      passenger_count:
+        min: 0
+        allow_null: true
+
+    transform_module: tripdata
+
+
+  # weather dataset
+  weather:
+    format: csv
+    raw_path: "data/raw/weather/*.csv"
+
+    csv_options:
+      header: true
+      inferSchema: false
+
+    schema_version: "1.0"
+
+    expected_columns:
+      - year
+      - month
+      - day
+      - hour
+      - temp
+      - rhum
+      - prcp
+      - wdir
+      - wspd
+      - pres
+      - coco
+
+    column_mapping:
+      temp: temperature
+      rhum: relative_humidity
+      prcp: precipitation
+      wdir: wind_direction
+      wspd: wind_speed
+      pres: pressure
+      coco: condition_code
+
+    dtype_overrides:
+      year: int
+      month: int
+      day: int
+      hour: int
+      temperature: double
+      relative_humidity: double
+      precipitation: double
+      wind_direction: double
+      wind_speed: double
+      pressure: double
+      condition_code: int
+
+    # generated timestamp from year,month,day,hour
+    primary_key:
+      - event_timestamp
+
+    # no partitioning
+    partition_by: []
+
+    write_mode: append
+
+    numeric_rules:
+      relative_humidity:
+        min: 0
+        max: 100
+        allow_null: true
+
+      precipitation:
+        min: 0
+        allow_null: true
+
+      wind_speed:
+        min: 0
+        allow_null: true
+
+    transform_module: weather
+
+
+  #air quality dataset
+  air_quality:
+    format: csv
+    raw_path: "data/raw/air_quality/*.csv"
+
+    csv_options:
+      header: true
+      inferSchema: false
+
+    schema_version: "1.0"
+
+    expected_columns:
+      - State Code
+      - County Code
+      - Site Num
+      - Parameter Code
+      - POC
+      - Latitude
+      - Longitude
+      - Date Local
+      - Time Local
+      - Sample Measurement
+
+    column_mapping:
+      State Code: state_code
+      County Code: county_code
+      Site Num: site_num
+      Parameter Code: parameter_code
+      POC: poc
+      Latitude: latitude
+      Longitude: longitude
+      Date Local: date_local
+      Time Local: time_local
+      Sample Measurement: pm25_concentration
+      State Name: state_name
+      County Name: county_name
+
+    dtype_overrides:
+      state_code: string
+      county_code: string
+      site_num: string
+      parameter_code: string
+      poc: int
+      latitude: double
+      longitude: double
+      pm25_concentration: double
+
+    # generated event_timestamp from date_local and time_local
+    primary_key:
+      - state_code
+      - county_code
+      - site_num
+      - parameter_code
+      - poc
+      - event_timestamp
+
+    partition_by:
+      - measurement_year
+
+    write_mode: append
+
+    numeric_rules:
+      latitude:
+        min: -90
+        max: 90
+
+      longitude:
+        min: -180
+        max: 180
+
+    transform_module: air_quality
+
+
+  # taxi zone lookup dataset
+  taxi_zone_lookup:
+    format: csv
+    raw_path: "data/raw/taxi_zone_lookup/*.csv"
+
+    csv_options:
+      header: true
+      inferSchema: false
+
+    schema_version: "1.0"
+
+    expected_columns:
+      - LocationID
+      - Borough
+      - Zone
+      - service_zone
+
+    column_mapping:
+      LocationID: location_id
+      Borough: borough
+      Zone: zone
+      service_zone: service_zone
+
+    dtype_overrides:
+      location_id: int
+
+    primary_key:
+      - location_id
+
+    #no partitioning
+    partition_by: []
+
+    write_mode: overwrite
+
+    numeric_rules:
+      location_id:
+        min: 1
+
+    transform_module: taxi_zone_lookup

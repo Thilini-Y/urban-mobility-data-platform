@@ -1,0 +1,5 @@
+dataset,primary_key,partition_by,silver_columns,silver_rows,quarantined_rows,quarantine_rate_pct
+tripdata,trip_id,"pickup_year, pickup_month",31,9554776,2,0.0
+weather,event_timestamp,(none),32,8784,0,0.0
+air_quality,"state_code, county_code, site_num, parameter_code, poc, event_timestamp",measurement_year,33,8139551,0,0.0
+taxi_zone_lookup,location_id,(none),9,265,0,0.0
