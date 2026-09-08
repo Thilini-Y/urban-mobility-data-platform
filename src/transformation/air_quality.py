@@ -1,13 +1,11 @@
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
+from src.common.data_model import EVENT_TIMESTAMP, add_event_time, parse_timestamp
+
 
 def transform(df: DataFrame, spark=None) -> DataFrame:
-    df = df.withColumn(
-        "event_timestamp",
-        F.to_timestamp(F.concat_ws(" ", F.col("date_local"), F.col("time_local")), "yyyy-MM-dd HH:mm"),
-    )
-    df = df.withColumn("event_date", F.to_date(F.col("date_local")))
-    df = df.withColumn("event_hour", F.hour(F.col("event_timestamp")))
-    df = df.withColumn("measurement_year", F.year(F.col("event_timestamp")))
+    combined = F.concat_ws(" ", F.col("date_gmt"), F.col("time_gmt"))
+    df = add_event_time(df, parse_timestamp(combined))
+    df = df.withColumn("measurement_year", F.year(F.col(EVENT_TIMESTAMP)))
     return df

@@ -154,6 +154,8 @@ datasets:
       - Date Local
       - Time Local
       - Sample Measurement
+      - Date GMT
+      - Time GMT
 
     column_mapping:
       State Code: state_code
@@ -168,6 +170,8 @@ datasets:
       Sample Measurement: pm25_concentration
       State Name: state_name
       County Name: county_name
+      Date GMT: date_gmt
+      Time GMT: time_gmt
 
     dtype_overrides:
       state_code: string
@@ -179,7 +183,7 @@ datasets:
       longitude: double
       pm25_concentration: double
 
-    # generated event_timestamp from date_local and time_local
+    # generated event_timestamp from date_gmt and time_gmt
     primary_key:
       - state_code
       - county_code

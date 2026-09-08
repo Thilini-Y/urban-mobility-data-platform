@@ -13,11 +13,18 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from pyspark.sql import functions as F
-
 from src.common.config_loader import DatasetConfig
+from src.common.data_model import (
+    IS_VALID,
+    QUARANTINED_AT,
+    add_lineage_columns,
+    apply_quality_checks,
+    change_datatype,
+    normalize_missing_values,
+    standardize_columns,
+    validate_common_schema,
+)
 from src.common.delta_writer import write_delta
-from src.common.renaming import standardize_columns
 from src.ingestion.loader import find_source_files, load_source_file
 from src.ingestion.metadata import (
     IngestionRunMetadata,
@@ -25,18 +32,15 @@ from src.ingestion.metadata import (
     new_run_id,
     save_metadata,
 )
-from src.ingestion.validator import (
-    add_lineage_columns,
-    change_datatype,
-    run_quality_checks,
-    validate_schema,
-)
+from src.ingestion.validator import validate_schema
 from src.transformation import get_transform
+
+from pyspark.sql import functions as F
 
 
 def ingest_dataset(spark, cfg: DatasetConfig, source_paths: Optional[List[str]] = None) -> List[IngestionRunMetadata]:
     paths = source_paths if source_paths is not None else find_source_files(cfg)
-    return [_ingest_source_file(spark, cfg, path) for path in paths]
+    return [_ingest_one_file(spark, cfg, path) for path in paths]
 
 
 def _empty_metadata(run_id: str, cfg: DatasetConfig, source_path: str, **overrides) -> IngestionRunMetadata:
@@ -52,7 +56,7 @@ def _empty_metadata(run_id: str, cfg: DatasetConfig, source_path: str, **overrid
     return IngestionRunMetadata(**base)
 
 
-def _ingest_source_file(spark, cfg: DatasetConfig, source_path: str) -> IngestionRunMetadata:
+def _ingest_one_file(spark, cfg: DatasetConfig, source_path: str) -> IngestionRunMetadata:
     run_id = new_run_id()
     timer = RunTimer()
     metadata: Optional[IngestionRunMetadata] = None
@@ -86,6 +90,7 @@ def _ingest_source_file(spark, cfg: DatasetConfig, source_path: str) -> Ingestio
                 processed_df = standardize_columns(raw_df, cfg.column_mapping)
 
                 # normalize data types
+                processed_df = normalize_missing_values(processed_df)
                 processed_df = change_datatype(processed_df, cfg.dtype_overrides)
 
                 # silver processing
@@ -96,11 +101,14 @@ def _ingest_source_file(spark, cfg: DatasetConfig, source_path: str) -> Ingestio
 
                 # generate primary keys
                 # data quality check
-                silver_df = run_quality_checks(silver_df, cfg.primary_key, cfg.numeric_rules)
+                silver_df = apply_quality_checks(silver_df, cfg.primary_key, cfg.numeric_rules)
 
-                valid_df = silver_df.filter(F.col("is_valid"))
-                invalid_df = silver_df.filter(~F.col("is_valid")).withColumn(
-                    "quarantined_at", F.current_timestamp()
+                # common data model schema check
+                validate_common_schema(silver_df, cfg)
+
+                valid_df = silver_df.filter(F.col(IS_VALID))
+                invalid_df = silver_df.filter(~F.col(IS_VALID)).withColumn(
+                    QUARANTINED_AT, F.current_timestamp()
                 )
 
                 # store delta tables
