@@ -4,7 +4,7 @@ Two partitioning strategies for the `tripdata` silver table, benchmarked on inge
 
 | Metric | A: partitioned by (pickup_year, pickup_month) | B: partitioned by (event_date) |
 |---|---|---|
-| Write time (s) | 7.48 | 5.12 |
+| Ingestion time (s) | 7.48 | 5.12 |
 | Storage size (MB) | 891.95 | 847.15 |
 | Number of files | 13 | 95 |
 | Q1: number of taxi trips per borough (s) | 0.249 | 0.114 |
