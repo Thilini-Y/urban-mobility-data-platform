@@ -7,7 +7,7 @@ This project implements a scalable data engineering platform using a multi-hop D
 
 ## Prerequisites
 Ensure your local environment has the following dependencies installed before executing the pipelines:
-* Python 3.9 - 3.11
+* Python 3.9 - 3.12
 * Required Python packages installed via `requirements.txt`
 
 ## Project Structure
@@ -18,11 +18,10 @@ The repository is organized to cleanly separate configuration, source code, data
 * `data/delta`: Processed data in Delta format.
 * `notebooks/`: Jupyter notebooks for exploratory data analysis, ingestion, integration, and benchmarking.
 * `reports/`: Output directory for generated assets.
-* 
 
 ## Execution Steps
 Run the platform in the following order to reproduce the results:
-* Create a virtual environment: `python -m venv venv` (python versions 3.9 - 3.11)
+* Create a virtual environment: `python -m venv venv` (python versions 3.9 - 3.12)
 * Activate the virtual environment:
   * Windows: `venv\Scripts\activate`
   * macOS/Linux: `source venv/bin/activate`
