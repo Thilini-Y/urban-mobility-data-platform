@@ -136,6 +136,19 @@ GROUP BY pickup_year, pickup_month
 ORDER BY pickup_year, pickup_month
 """
 
+# Q6: Monthly trends in taxi demand wihtout filtering
+QUERY_MONTHLY_TRENDS_WITHOUT_FILTER = """
+SELECT
+    pickup_year,
+    pickup_month,
+    COUNT(*) AS trip_count,
+    ROUND(AVG(fare_amount), 2) AS avg_fare,
+    ROUND(AVG(trip_distance), 2) AS avg_distance
+FROM integrated_taxi_trips
+GROUP BY pickup_year, pickup_month
+ORDER BY pickup_year, pickup_month
+"""
+
 
 ALL_QUERIES = {
     "Q1_monthly_demand_per_zone": QUERY_MONTHLY_DEMAND_PER_ZONE,
@@ -144,4 +157,13 @@ ALL_QUERIES = {
     "Q4_zones_most_weather_sensitive": QUERY_ZONES_MOST_WEATHER_SENSITIVE,
     "Q5_peak_hour_per_day": QUERY_PEAK_HOUR_PER_DAY,
     "Q6_monthly_trends": QUERY_MONTHLY_TRENDS,
+}
+
+ALL_QUERIES_WITHOUT_FILTER = {
+    "Q1_monthly_demand_per_zone": QUERY_MONTHLY_DEMAND_PER_ZONE,
+    "Q2_avg_distance_by_weather": QUERY_AVG_DISTANCE_BY_WEATHER,
+    "Q3_air_quality_vs_demand": QUERY_AIR_QUALITY_VS_DEMAND,
+    "Q4_zones_most_weather_sensitive": QUERY_ZONES_MOST_WEATHER_SENSITIVE,
+    "Q5_peak_hour_per_day": QUERY_PEAK_HOUR_PER_DAY,
+    "Q6_monthly_trends": QUERY_MONTHLY_TRENDS_WITHOUT_FILTER,
 }
