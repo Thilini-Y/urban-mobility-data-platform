@@ -44,5 +44,5 @@ Run the platform in the following order to reproduce the results:
 
 * Week 2 extends the platform by implementing reusable analytical SQL queries, evaluating Spark query optimizations, and materializing automated analytical data products.
 * Design of analytical queries (Task 1): `notebooks/week2/run_analytics.ipynb`
-* Optimisation of Benchmarks (Tasks 2,3 and 5): `notebooks/week2/optimize_query_&_benchmarking.ipynb`
+* Optimisation and Benchmarks (Tasks 2,3 and 5): `notebooks/week2/optimize_query_&_benchmarking.ipynb`
 * Materialization of Analytical Data Products (Task 4): `notebooks/week2/run_reusable_products.ipynb`
