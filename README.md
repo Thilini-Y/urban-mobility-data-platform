@@ -27,13 +27,22 @@ Run the platform in the following order to reproduce the results:
   * macOS/Linux: `source venv/bin/activate`
 
 * Initialize the environment dependencies: `pip install -r requirements.txt`
+
+## Week 1: Build a Generic Urban Data Integration Platform
+
 * Load sample data as follows (ensure the unzipped data is placed in the correct directories):
     * Air Quality Data: `data/raw/air_quality/`
     * Taxi Zone Lookup Data: `data/raw/taxi_zone_lookup/`
     * Taxi Trip Data: `data/raw/tripdata/`
     * Weather Data: `data/raw/weather/`
 * Open the Jupyter notebook for exploratory analysis: `jupyter notebook`
-* Execute data ingestion and quarantine rules (Tasks 1-3): `notebooks/run_ingestion.ipynb`
-* Execute the integration layer to enrich the data and generate analytical reports (Tasks 4-5): `notebooks/run_integration.ipynb`
-* Generate storage strategy metrics and query latency reports (Task 6): `notebooks/run_benchmark.ipynb`
+* Execute data ingestion and quarantine rules (Tasks 1-3): `notebooks/week1/run_ingestion.ipynb`
+* Execute the integration layer to enrich the data and generate analytical reports (Tasks 4-5): `notebooks/week1/run_integration.ipynb`
+* Generate storage strategy metrics and query latency reports (Task 6): `notebooks/week1/run_benchmark.ipynb`
 
+## Week 2: Querying and Optimizing the Urban Data Platform
+
+* Week 2 extends the platform by implementing reusable analytical SQL queries, evaluating Spark query optimizations, and materializing automated analytical data products.
+* Design of analytical queries (Task 1): `notebooks/week2/run_analytics.ipynb`
+* Optimisation of Benchmarks (Tasks 2,3 and 5): `notebooks/week2/optimize_query_&_benchmarking.ipynb`
+* Materialization of Analytical Data Products (Task 4): `notebooks/week2/run_reusable_products.ipynb`
