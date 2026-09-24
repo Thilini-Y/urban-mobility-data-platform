@@ -143,15 +143,15 @@ def change_datatype(df: DataFrame, dtype_overrides: dict) -> DataFrame:
     df = df.withColumn(CAST_ERRORS, F.array().cast("array<string>"))
 
     for name, dtype in dtype_overrides.items():
-        if name not in df.columns:
-            raise ValueError(f"Column '{name}' not found")
-
         target = normalize_spark_type(dtype)
-        original = F.col(name)
 
+        if name not in df.columns:
+            df = df.withColumn(name, F.lit(None).cast(target))
+            continue
+
+        original = F.col(name)
         quoted = "`" + name.replace("`", "``") + "`"
         converted = F.expr(f"try_cast({quoted} AS {target})")
-
         bad = original.isNotNull() & converted.isNull()
 
         numeric = target in {"byte", "short", "int", "bigint", "float", "double"} or target.startswith("decimal(")
@@ -159,7 +159,6 @@ def change_datatype(df: DataFrame, dtype_overrides: dict) -> DataFrame:
         if numeric:
             bad = bad | _nonfinite(converted)
             if target in _INTEGER_TYPES:
-                # Reject fractional values instead of silently truncating them.
                 number = F.expr(f"try_cast({quoted} AS double)")
                 bad = bad | (number.isNotNull() & (number != F.floor(number)))
             reason = f"invalid_numeric:{name}"
@@ -169,11 +168,7 @@ def change_datatype(df: DataFrame, dtype_overrides: dict) -> DataFrame:
             reason = f"invalid_type:{name}"
 
         bad = F.coalesce(bad, F.lit(False))
-
-        df = df.withColumn(
-            CAST_ERRORS,
-            F.concat(F.col(CAST_ERRORS), F.array(F.when(bad, F.lit(reason)))),
-        )
+        df = df.withColumn(CAST_ERRORS, F.concat(F.col(CAST_ERRORS), F.array(F.when(bad, F.lit(reason)))))
         df = df.withColumn(name, F.when(bad, F.lit(None).cast(target)).otherwise(converted))
 
     return df.withColumn(CAST_ERRORS, F.filter(F.col(CAST_ERRORS), lambda x: x.isNotNull()))

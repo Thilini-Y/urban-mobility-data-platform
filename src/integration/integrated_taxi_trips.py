@@ -17,6 +17,8 @@ import os
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
+from deltalake import DeltaTable
+from src.common.delta_writer import table_exists, write_delta
 
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -113,3 +115,66 @@ def build_integrated_taxi_trips(spark: SparkSession) -> DataFrame:
     )
 
     return enriched
+
+# found only the trips not already present in Gold delta table
+def _new_trips_since_last_gold_build(spark: SparkSession, trips_df: DataFrame) -> DataFrame:
+    if not table_exists(GOLD_PATH):
+        return trips_df
+
+    existing_ids = spark.read.parquet(GOLD_PATH).select("trip_id").distinct()
+    return trips_df.join(existing_ids, on="trip_id", how="left_anti")
+
+
+# Join only newly ingested trips
+def build_integrated_taxi_trips_incremental(spark: SparkSession):
+    trips = _read_delta(spark, TRIPDATA_SILVER)
+    new_trips = _new_trips_since_last_gold_build(spark, trips)
+
+    if new_trips.limit(1).count() == 0:
+        return None, 0
+
+    weather = _read_delta(spark, WEATHER_SILVER)
+    air_quality = _read_delta(spark, AIR_QUALITY_SILVER)
+    zone_lookup = _prepare_zone_lookup(_read_delta(spark, ZONE_LOOKUP_SILVER))
+    air_quality_agg = _prepare_air_quality(air_quality)
+
+    weather_cols = weather.select(
+        F.col("event_date"), F.col("event_hour"),
+        F.col("temperature").alias("weather_temperature"),
+        F.col("relative_humidity").alias("weather_relative_humidity"),
+        F.col("precipitation").alias("weather_precipitation"),
+        F.col("wind_speed").alias("weather_wind_speed"),
+        F.col("pressure").alias("weather_pressure"),
+        F.col("condition_code").alias("weather_condition_code"),
+    )
+
+    pickup_zone = zone_lookup.select(
+        F.col("location_id").alias("pickup_location_id"),
+        F.col("zone").alias("pickup_zone"),
+        F.col("borough").alias("pickup_borough"),
+    )
+    dropoff_zone = zone_lookup.select(
+        F.col("location_id").alias("dropoff_location_id"),
+        F.col("zone").alias("dropoff_zone"),
+        F.col("borough").alias("dropoff_borough"),
+    )
+
+    enriched = (
+        new_trips
+        .join(pickup_zone, on="pickup_location_id", how="left")
+        .join(dropoff_zone, on="dropoff_location_id", how="left")
+        .join(weather_cols, on=["event_date", "event_hour"], how="left")
+        .join(
+            air_quality_agg,
+            (new_trips["event_date"] == air_quality_agg["event_date"])
+            & (new_trips["event_hour"] == air_quality_agg["event_hour"])
+            & (F.col("pickup_borough") == air_quality_agg["borough"]),
+            how="left",
+        )
+        .drop(air_quality_agg["event_date"])
+        .drop(air_quality_agg["event_hour"])
+        .drop(air_quality_agg["borough"])
+    )
+
+    row_count = enriched.count()
+    return enriched, row_count

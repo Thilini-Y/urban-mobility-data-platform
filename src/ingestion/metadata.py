@@ -28,6 +28,7 @@ class IngestionRunMetadata:
     records_bronze: int = 0
     records_valid_silver: int = 0
     records_quarantined: int = 0
+    records_duplicate_ignored: int = 0
     error_message: str = ""
     started_at: str = ""
     ended_at: str = ""
@@ -53,7 +54,7 @@ def new_run_id() -> str:
 
 def save_metadata(metadata: IngestionRunMetadata) -> None:
     pdf = pd.DataFrame([asdict(metadata)])
-    write_deltalake(METADATA_PATH, pdf, mode="append")
+    write_deltalake(METADATA_PATH, pdf, mode="append", schema_mode="merge")
 
 
 def read_ingestion_runs() -> Optional[pd.DataFrame]:

@@ -5,9 +5,10 @@ Ingestion pipeline:
 3. Standardizing and normalizing
 4. Data transformation
 5. Generate primary key
-6. Data Quality check
-7. Store Delta tables
-8. Write metadata
+6. Deduplicate against existing Silver data     <-- NEW
+7. Data Quality check
+8. Store Delta tables (with schema evolution)    <-- UPDATED
+9. Write metadata
 """
 from __future__ import annotations
 
@@ -24,7 +25,6 @@ from src.common.data_model import (
     standardize_columns,
     validate_common_schema,
 )
-from src.common.delta_writer import write_delta
 from src.ingestion.loader import find_source_files, load_source_file
 from src.ingestion.metadata import (
     IngestionRunMetadata,
@@ -34,6 +34,8 @@ from src.ingestion.metadata import (
 )
 from src.ingestion.validator import validate_schema
 from src.transformation import get_transform
+from src.common.delta_writer import table_exists, write_delta
+from deltalake import DeltaTable
 
 from pyspark.sql import functions as F
 
@@ -54,6 +56,32 @@ def _empty_metadata(run_id: str, cfg: DatasetConfig, source_path: str, **overrid
     )
     base.update(overrides)
     return IngestionRunMetadata(**base)
+
+
+from deltalake import DeltaTable
+
+
+def _drop_existing_pks(spark, cfg, silver_df):
+    if not table_exists(cfg.silver_path()):
+        return silver_df, 0
+
+    existing_pks_pdf = (
+        DeltaTable(cfg.silver_path())
+        .to_pyarrow_dataset()
+        .to_table(columns=list(cfg.primary_key))
+        .to_pandas()
+        .drop_duplicates()
+    )
+
+    if existing_pks_pdf.empty:
+        return silver_df, 0
+
+    existing_pks = spark.createDataFrame(existing_pks_pdf)
+
+    before_count = silver_df.count()
+    deduped_df = silver_df.join(existing_pks, on=cfg.primary_key, how="left_anti")
+    after_count = deduped_df.count()
+    return deduped_df, before_count - after_count
 
 
 def _ingest_one_file(spark, cfg: DatasetConfig, source_path: str) -> IngestionRunMetadata:
@@ -83,8 +111,11 @@ def _ingest_one_file(spark, cfg: DatasetConfig, source_path: str) -> IngestionRu
                 # first Delta layer
                 # preserves the source data as it was loaded
                 bronze_df = add_lineage_columns(raw_df, source_path, cfg.schema_version)
-                # store delta table
-                records_bronze = write_delta(bronze_df, cfg.bronze_path(), mode="append", partition_by=[])
+                # store delta table (schema_mode="merge" lets a new source column,
+                # e.g. humidity/aqi, get added to Bronze without a full rewrite)
+                records_bronze = write_delta(
+                    bronze_df, cfg.bronze_path(), mode="append", partition_by=[], schema_mode="merge"
+                )
 
                 # standardize column names
                 processed_df = standardize_columns(raw_df, cfg.column_mapping)
@@ -99,6 +130,11 @@ def _ingest_one_file(spark, cfg: DatasetConfig, source_path: str) -> IngestionRu
                 silver_df = transform_fn(processed_df, spark)
                 silver_df = add_lineage_columns(silver_df, source_path, cfg.schema_version)
 
+                # deduplicate against records already in Silver (primary keys
+                # like trip_id/event_timestamp only exist after transform_fn runs,
+                # so this must happen here, not on the raw dataframe)
+                silver_df, records_duplicate_ignored = _drop_existing_pks(spark, cfg, silver_df)
+
                 # generate primary keys
                 # data quality check
                 silver_df = apply_quality_checks(silver_df, cfg.primary_key, cfg.numeric_rules)
@@ -111,9 +147,15 @@ def _ingest_one_file(spark, cfg: DatasetConfig, source_path: str) -> IngestionRu
                     QUARANTINED_AT, F.current_timestamp()
                 )
 
-                # store delta tables
-                records_valid = write_delta(valid_df, cfg.silver_path(), mode=cfg.write_mode, partition_by=cfg.partition_by)
-                records_quarantined = write_delta(invalid_df, cfg.quarantine_path(), mode="append", partition_by=[])
+                # store delta tables (schema_mode="merge" on Silver too, for the
+                # same reason as Bronze above)
+                records_valid = write_delta(
+                    valid_df, cfg.silver_path(), mode=cfg.write_mode, partition_by=cfg.partition_by,
+                    schema_mode="merge",
+                )
+                records_quarantined = write_delta(
+                    invalid_df, cfg.quarantine_path(), mode="append", partition_by=[], schema_mode="merge"
+                )
 
                 # generate metadata
                 metadata = _empty_metadata(
@@ -123,6 +165,7 @@ def _ingest_one_file(spark, cfg: DatasetConfig, source_path: str) -> IngestionRu
                     records_bronze=records_bronze,
                     records_valid_silver=records_valid,
                     records_quarantined=records_quarantined,
+                    records_duplicate_ignored=records_duplicate_ignored,
                 )
         except Exception as exc:  # noqa: BLE001
             metadata = _empty_metadata(run_id, cfg, source_path, status="FAILED", error_message=str(exc))

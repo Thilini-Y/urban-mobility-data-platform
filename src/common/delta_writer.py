@@ -14,6 +14,7 @@ def write_delta(
     path: str,
     mode: str = "append",
     partition_by: Optional[list] = None,
+    schema_mode: Optional[str] = None,
 ) -> int:
 
     partition_by = partition_by or []
@@ -26,7 +27,11 @@ def write_delta(
         row_count = arrow_dataset.count_rows()
 
         reader = arrow_dataset.scanner(batch_size=65_536).to_reader()
-        write_deltalake(path, reader, mode=mode, partition_by=partition_by or None)
+
+        write_kwargs = dict(mode=mode, partition_by=partition_by or None)
+        if schema_mode is not None:
+            write_kwargs["schema_mode"] = schema_mode
+        write_deltalake(path, reader, **write_kwargs)
 
         return row_count
     finally:
