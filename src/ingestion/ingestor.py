@@ -36,8 +36,11 @@ from src.ingestion.validator import validate_schema
 from src.transformation import get_transform
 from src.common.delta_writer import table_exists, write_delta
 from deltalake import DeltaTable
+from src.monitoring.storage_utils import get_dir_size_bytes
 
 from pyspark.sql import functions as F
+
+import json
 
 
 def ingest_dataset(spark, cfg: DatasetConfig, source_paths: Optional[List[str]] = None) -> List[IngestionRunMetadata]:
@@ -88,6 +91,7 @@ def _ingest_one_file(spark, cfg: DatasetConfig, source_path: str) -> IngestionRu
     run_id = new_run_id()
     timer = RunTimer()
     metadata: Optional[IngestionRunMetadata] = None
+    silver_before = get_dir_size_bytes(cfg.silver_path())
 
     with timer:
         try:
@@ -157,6 +161,20 @@ def _ingest_one_file(spark, cfg: DatasetConfig, source_path: str) -> IngestionRu
                     invalid_df, cfg.quarantine_path(), mode="append", partition_by=[], schema_mode="merge"
                 )
 
+                storage_overhead = get_dir_size_bytes(cfg.silver_path()) - silver_before
+
+                # breakdown of rejection reasons for monitoring
+                if records_quarantined:
+                    reason_counts = (
+                        invalid_df
+                        .withColumn("reason", F.explode(F.split(F.col("rejection_reason"), ", ")))
+                        .groupBy("reason").count()
+                        .collect()
+                    )
+                    validation_failures = json.dumps({r["reason"]: r["count"] for r in reason_counts})
+                else:
+                    validation_failures = "{}"
+
                 # generate metadata
                 metadata = _empty_metadata(
                     run_id, cfg, source_path,
@@ -166,6 +184,8 @@ def _ingest_one_file(spark, cfg: DatasetConfig, source_path: str) -> IngestionRu
                     records_valid_silver=records_valid,
                     records_quarantined=records_quarantined,
                     records_duplicate_ignored=records_duplicate_ignored,
+                    storage_overhead_bytes=storage_overhead,
+                    validation_failures=validation_failures,
                 )
         except Exception as exc:  # noqa: BLE001
             metadata = _empty_metadata(run_id, cfg, source_path, status="FAILED", error_message=str(exc))

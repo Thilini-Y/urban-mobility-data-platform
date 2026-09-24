@@ -29,6 +29,8 @@ class IngestionRunMetadata:
     records_valid_silver: int = 0
     records_quarantined: int = 0
     records_duplicate_ignored: int = 0
+    validation_failures: str = ""
+    storage_overhead_bytes: int = 0
     error_message: str = ""
     started_at: str = ""
     ended_at: str = ""
