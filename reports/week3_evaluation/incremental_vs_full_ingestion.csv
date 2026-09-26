@@ -1,0 +1,4 @@
+dataset,files,full_reingest_s,rows_in_silver,incremental_s,speed-up
+tripdata,4,102.43,9848033,11.78,8.7
+weather,2,2.99,8952,1.81,1.7
+air_quality,2,59.48,8140025,3.45,17.2

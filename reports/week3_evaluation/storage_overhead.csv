@@ -1,0 +1,6 @@
+item,MB,% of active data
+"retained history (time travel, reclaimable by VACUUM)",117.78285217285156,5.409571409068737
+Delta transaction logs,0.5611066818237305,0.025770700975865105
+Week 3 tables: quarantine + monitoring metadata,0.6375141143798828,0.029279967859549727
+Gold: bytes written by one incremental refresh,26.870984077453613,1.2341398133712311
+Gold: bytes written by one full rebuild,982.1686363220215,45.109379471762246

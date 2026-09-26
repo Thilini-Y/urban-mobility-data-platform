@@ -1,0 +1,6 @@
+measurement,value,context
+"incremental update time (3 update files, Task 4 pipeline)",17.0 s,full re-ingestion: 164.9 s
+"analytical refresh time (Gold + 4 products, incremental)",40.3 s,full rebuild: 19.0 s
+storage overhead (history + logs + Week 3 tables),119.0 MB,5.465% of 2177 MB active data
+"validation overhead (Task 4, tripdata update)",5.0 s,71% over no validation; Week 1: 837%
+monitoring overhead (per run),24 ms metadata writes,+ 0 ms storage scan of silver.tripdata; end-to-end tripdata: -0.39 s

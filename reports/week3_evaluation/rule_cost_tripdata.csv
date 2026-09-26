@@ -1,0 +1,17 @@
+rule,type,cost_s
+duplicate_existing,not_in_table,1.257
+type_conformance,cast_errors,0.369
+incomplete,not_null,0.241
+duplicate_in_batch,unique,0.237
+negative_fare,valid_range,0.225
+missing_dropoff_zone,reference,0.211
+dropoff_before_pickup,expression,0.207
+invalid_payment_type,allowed_values,0.179
+invalid_passenger_count,valid_range,0.127
+invalid_vendor_id,allowed_values,0.114
+trip_longer_than_24h,expression,0.103
+invalid_pickup_year,valid_range,0.099
+missing_pickup_zone,reference,0.094
+invalid_trip_distance,valid_range,0.053
+invalid_ratecode_id,allowed_values,-0.049
+invalid_pickup_month,valid_range,-0.115

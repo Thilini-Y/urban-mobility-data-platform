@@ -1,0 +1,4 @@
+dataset,no_validation_s,week1_validation_s,week1_validation_%,task4_validation_s,task4_validation_%,week1_monitoring_s,task4_monitoring_s,task4_monitoring_%
+air_quality,0.87,112.48,12928.74,3.63,417.24,-3.5,-1.05,-23.33
+tripdata,7.12,59.61,837.22,5.05,70.93,-0.98,-0.39,-3.2
+weather,0.74,1.31,177.03,1.15,155.41,0.02,-0.08,-4.23

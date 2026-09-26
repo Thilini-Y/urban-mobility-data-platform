@@ -18,7 +18,7 @@ import os
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from deltalake import DeltaTable
-from src.common.delta_writer import table_exists, write_delta
+from src.common.delta_writer import read_delta_spark, table_exists, write_delta
 
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -41,9 +41,9 @@ COUNTY_TO_BOROUGH = {
 
 
 def _read_delta(spark: SparkSession, path: str) -> DataFrame:
-    if not os.path.exists(path):
+    if not table_exists(path):
         raise FileNotFoundError(f"No silver data found at {path} - run ingestion for this dataset first")
-    return spark.read.parquet(path)
+    return read_delta_spark(spark, path)
 
 
 def _map_county_to_borough(df: DataFrame, county_column: str, output_column: str) -> DataFrame:
@@ -121,7 +121,7 @@ def _new_trips_since_last_gold_build(spark: SparkSession, trips_df: DataFrame) -
     if not table_exists(GOLD_PATH):
         return trips_df
 
-    existing_ids = spark.read.parquet(GOLD_PATH).select("trip_id").distinct()
+    existing_ids = read_delta_spark(spark, GOLD_PATH).select("trip_id").distinct()
     return trips_df.join(existing_ids, on="trip_id", how="left_anti")
 
 

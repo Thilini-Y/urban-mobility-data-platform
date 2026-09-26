@@ -42,6 +42,17 @@ def table_exists(path: str) -> bool:
     return DeltaTable.is_deltatable(path)
 
 
+def read_delta_spark(spark, path: str) -> DataFrame:
+    # read only the files of the current table version: a directory read would also pick up
+    # files removed by overwrites or restores that are still on disk
+    if not table_exists(path):
+        raise FileNotFoundError(f"No Delta table at {path}")
+    files = DeltaTable(path).file_uris()
+    if not files:
+        raise ValueError(f"Delta table at {path} is empty")
+    return spark.read.option("basePath", path).parquet(*files)
+
+
 def read_delta_as_arrow(path: str):
     if not table_exists(path):
         return None

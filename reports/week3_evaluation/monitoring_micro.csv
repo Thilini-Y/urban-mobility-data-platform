@@ -1,0 +1,5 @@
+monitoring action,median_ms,max_ms
+write run metadata row (ingestion_runs),15.99,27.4
+write validation report rows (validation_reports),8.49,10.31
+storage scan of silver.tripdata (get_dir_size_bytes),0.29,2.86
+storage scan of silver.weather (get_dir_size_bytes),0.08,0.43
