@@ -1,0 +1,503 @@
+# Week 3 / Task 4: dataset configuration extended with the validation framework.
+#
+# The ingestion part of every dataset (format, column_mapping, dtype_overrides,
+# primary_key, ...) is identical to config/datasets.yaml, so the Week 1 loader
+# (src.common.config_loader.load_dataset_configs) can read this file unchanged.
+# The Week 1 `numeric_rules` block is replaced by `valid_range` rules below.
+#
+# Two new sections per dataset:
+#
+#   schema:
+#     known_columns:        source columns present in the original release that are
+#                           accepted but not required (expected_columns are required)
+#     evolution_columns:    declared additive schema changes (e.g. humidity, aqi).
+#                           They are merged into Bronze/Silver automatically.
+#     on_unexpected_column: what to do with an undeclared new source column
+#                           drop   -> keep in Bronze, drop before Silver, report it
+#                           allow  -> merge it everywhere, report it
+#                           reject -> reject the whole file
+#     Missing required columns and incompatible type changes always reject the file.
+#
+#   validation:
+#     rules: list of rule instances. Every rule has
+#       name:     identifier used in rejection_reason / reports
+#       type:     a rule type registered in the validation engine (RULE_REGISTRY)
+#       category: duplicate | invalid_value | missing_reference | incomplete | schema
+#                 (defaults to the rule type's category)
+#       action:   quarantine (default) -> row is isolated in the quarantine table
+#                 ignore                -> row is dropped and counted (e.g. re-delivered rows)
+#                 warn                  -> row stays valid, violation is only reported
+#     plus the rule type's own parameters. New rules of an existing type need
+#     only a YAML change; new rule types need one registered function.
+#     A column list of "$primary_key" expands to the dataset's primary key.
+#     Value rules (valid_range, allowed_values, regex, expression, reference) skip
+#     nulls: missing values are reported once, by the not_null (incomplete) rule.
+
+datasets:
+  # taxi tripdata dataset
+  tripdata:
+    format: parquet
+    raw_path: "data/raw/tripdata/*.parquet"
+    schema_version: "1.0"
+
+    expected_columns:
+      - VendorID
+      - tpep_pickup_datetime
+      - tpep_dropoff_datetime
+      - passenger_count
+      - trip_distance
+      - RatecodeID
+      - PULocationID
+      - DOLocationID
+      - payment_type
+      - fare_amount
+      - total_amount
+
+    column_mapping:
+      VendorID: vendor_id
+      tpep_pickup_datetime: pickup_timestamp
+      tpep_dropoff_datetime: dropoff_timestamp
+      RatecodeID: ratecode_id
+      PULocationID: pickup_location_id
+      DOLocationID: dropoff_location_id
+
+    dtype_overrides:
+      vendor_id: int
+      pickup_timestamp: timestamp
+      dropoff_timestamp: timestamp
+      passenger_count: int
+      trip_distance: double
+      ratecode_id: int
+      pickup_location_id: int
+      dropoff_location_id: int
+      payment_type: int
+      fare_amount: double
+      total_amount: double
+
+    # generated trip_id
+    primary_key:
+      - trip_id
+
+    partition_by:
+      - pickup_year
+      - pickup_month
+
+    write_mode: append
+
+    transform_module: tripdata
+
+    schema:
+      known_columns:
+        - store_and_fwd_flag
+        - extra
+        - mta_tax
+        - tip_amount
+        - tolls_amount
+        - improvement_surcharge
+        - congestion_surcharge
+        - Airport_fee
+      evolution_columns: []
+      on_unexpected_column: drop
+
+    validation:
+      rules:
+        # generic rules
+        - name: type_conformance
+          type: cast_errors
+        - name: incomplete
+          type: not_null
+          columns: [pickup_timestamp, dropoff_timestamp, event_timestamp, pickup_location_id,
+                    dropoff_location_id, trip_distance, fare_amount, total_amount, vendor_id, payment_type]
+        - name: duplicate_in_batch
+          type: unique
+          columns: $primary_key
+        - name: duplicate_existing
+          type: not_in_table
+          columns: $primary_key
+          table: silver/tripdata
+          action: ignore
+        # dataset-specific rules
+        - name: invalid_trip_distance
+          type: valid_range
+          column: trip_distance
+          min: 0
+          max: 500
+        - name: invalid_passenger_count
+          type: valid_range
+          column: passenger_count
+          min: 0
+          max: 9
+        - name: invalid_pickup_year
+          type: valid_range
+          column: pickup_year
+          min: 2024
+          max: 2024
+        - name: invalid_pickup_month
+          type: valid_range
+          column: pickup_month
+          min: 1
+          max: 4
+        - name: invalid_vendor_id
+          type: allowed_values
+          column: vendor_id
+          values: [1, 2, 6, 7]
+        - name: invalid_payment_type
+          type: allowed_values
+          column: payment_type
+          values: [0, 1, 2, 3, 4, 5, 6]
+        - name: invalid_ratecode_id
+          type: allowed_values
+          column: ratecode_id
+          values: [1, 2, 3, 4, 5, 6, 99]
+        - name: dropoff_before_pickup
+          type: expression
+          valid_if: "dropoff_timestamp >= pickup_timestamp"
+        - name: trip_longer_than_24h
+          type: expression
+          valid_if: "trip_duration_minutes <= 1440"
+        - name: missing_pickup_zone
+          type: reference
+          column: pickup_location_id
+          table: silver/taxi_zone_lookup
+          ref_column: location_id
+        - name: missing_dropoff_zone
+          type: reference
+          column: dropoff_location_id
+          table: silver/taxi_zone_lookup
+          ref_column: location_id
+        # negative fares are refunds / voided trips: legitimate, but worth tracking
+        - name: negative_fare
+          type: valid_range
+          column: fare_amount
+          min: 0
+          action: warn
+
+
+  # weather dataset
+  weather:
+    format: csv
+    raw_path: "data/raw/weather/*.csv"
+
+    csv_options:
+      header: true
+      inferSchema: false
+
+    schema_version: "1.0"
+
+    expected_columns:
+      - year
+      - month
+      - day
+      - hour
+      - temp
+      - rhum
+      - prcp
+      - wdir
+      - wspd
+      - pres
+      - coco
+
+    column_mapping:
+      temp: temperature
+      rhum: relative_humidity
+      prcp: precipitation
+      wdir: wind_direction
+      wspd: wind_speed
+      pres: pressure
+      coco: condition_code
+      humidity: humidity
+
+    dtype_overrides:
+      year: int
+      month: int
+      day: int
+      hour: int
+      temperature: double
+      relative_humidity: double
+      precipitation: double
+      wind_direction: double
+      wind_speed: double
+      pressure: double
+      condition_code: int
+      humidity: double
+
+    # generated timestamp from year,month,day,hour
+    primary_key:
+      - event_timestamp
+
+    # no partitioning
+    partition_by: []
+
+    write_mode: append
+
+    transform_module: weather
+
+    schema:
+      known_columns:
+        - temp_source
+        - rhum_source
+        - prcp_source
+        - snwd
+        - snwd_source
+        - wdir_source
+        - wspd_source
+        - wpgt
+        - wpgt_source
+        - pres_source
+        - cldc
+        - cldc_source
+        - coco_source
+      evolution_columns:
+        - humidity
+      on_unexpected_column: drop
+
+    validation:
+      rules:
+        - name: type_conformance
+          type: cast_errors
+        - name: incomplete
+          type: not_null
+          columns: [event_timestamp, temperature, relative_humidity, pressure]
+        - name: duplicate_in_batch
+          type: unique
+          columns: $primary_key
+          keep: none   # two different observations for the same hour: keep neither
+        - name: duplicate_existing
+          type: not_in_table
+          columns: $primary_key
+          table: silver/weather
+          action: ignore
+        - name: invalid_temperature
+          type: valid_range
+          column: temperature
+          min: -40
+          max: 50
+        - name: invalid_relative_humidity
+          type: valid_range
+          column: relative_humidity
+          min: 0
+          max: 100
+        - name: invalid_humidity
+          type: valid_range
+          column: humidity
+          min: 0
+          max: 100
+        - name: invalid_precipitation
+          type: valid_range
+          column: precipitation
+          min: 0
+          max: 200
+        - name: invalid_wind_speed
+          type: valid_range
+          column: wind_speed
+          min: 0
+          max: 250
+        - name: invalid_wind_direction
+          type: valid_range
+          column: wind_direction
+          min: 0
+          max: 360
+        - name: invalid_pressure
+          type: valid_range
+          column: pressure
+          min: 870
+          max: 1085
+        - name: invalid_condition_code
+          type: valid_range
+          column: condition_code
+          min: 1
+          max: 27
+
+
+  #air quality dataset
+  air_quality:
+    format: csv
+    raw_path: "data/raw/air_quality/*.csv"
+
+    csv_options:
+      header: true
+      inferSchema: false
+
+    schema_version: "1.0"
+
+    expected_columns:
+      - State Code
+      - County Code
+      - Site Num
+      - Parameter Code
+      - POC
+      - Latitude
+      - Longitude
+      - Date Local
+      - Time Local
+      - Sample Measurement
+      - Date GMT
+      - Time GMT
+
+    column_mapping:
+      State Code: state_code
+      County Code: county_code
+      Site Num: site_num
+      Parameter Code: parameter_code
+      POC: poc
+      Latitude: latitude
+      Longitude: longitude
+      Date Local: date_local
+      Time Local: time_local
+      Sample Measurement: pm25_concentration
+      State Name: state_name
+      County Name: county_name
+      Date GMT: date_gmt
+      Time GMT: time_gmt
+      aqi: aqi
+
+    dtype_overrides:
+      state_code: string
+      county_code: string
+      site_num: string
+      parameter_code: string
+      poc: int
+      latitude: double
+      longitude: double
+      pm25_concentration: double
+      aqi: int
+
+    # generated event_timestamp from date_gmt and time_gmt
+    primary_key:
+      - state_code
+      - county_code
+      - site_num
+      - parameter_code
+      - poc
+      - event_timestamp
+
+    partition_by:
+      - measurement_year
+
+    write_mode: append
+
+    transform_module: air_quality
+
+    schema:
+      known_columns:
+        - Datum
+        - Parameter Name
+        - Units of Measure
+        - MDL
+        - Uncertainty
+        - Qualifier
+        - Method Type
+        - Method Code
+        - Method Name
+        - State Name
+        - County Name
+        - Date of Last Change
+      evolution_columns:
+        - aqi
+      on_unexpected_column: drop
+
+    validation:
+      rules:
+        - name: type_conformance
+          type: cast_errors
+        - name: incomplete
+          type: not_null
+          columns: [state_code, county_code, site_num, parameter_code, poc, event_timestamp,
+                    latitude, longitude, pm25_concentration, county_name]
+        - name: duplicate_in_batch
+          type: unique
+          columns: $primary_key
+        - name: duplicate_existing
+          type: not_in_table
+          columns: $primary_key
+          table: silver/air_quality
+          action: ignore
+        - name: invalid_latitude
+          type: valid_range
+          column: latitude
+          min: -90
+          max: 90
+        - name: invalid_longitude
+          type: valid_range
+          column: longitude
+          min: -180
+          max: 180
+        # FEM monitors legitimately report small negative values (down to -10)
+        - name: invalid_pm25_concentration
+          type: valid_range
+          column: pm25_concentration
+          min: -10
+          max: 2000
+        - name: invalid_aqi
+          type: valid_range
+          column: aqi
+          min: 0
+          max: 500
+        # pm25_concentration is only meaningful for PM2.5 (EPA parameter 88101)
+        - name: unexpected_parameter_code
+          type: allowed_values
+          column: parameter_code
+          values: ["88101"]
+        - name: invalid_time_gmt
+          type: regex
+          column: time_gmt
+          pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+
+
+  # taxi zone lookup dataset
+  taxi_zone_lookup:
+    format: csv
+    raw_path: "data/raw/taxi_zone_lookup/*.csv"
+
+    csv_options:
+      header: true
+      inferSchema: false
+
+    schema_version: "1.0"
+
+    expected_columns:
+      - LocationID
+      - Borough
+      - Zone
+      - service_zone
+
+    column_mapping:
+      LocationID: location_id
+      Borough: borough
+      Zone: zone
+      service_zone: service_zone
+
+    dtype_overrides:
+      location_id: int
+
+    primary_key:
+      - location_id
+
+    #no partitioning
+    partition_by: []
+
+    # full refresh: no duplicate_existing rule, the table is replaced
+    write_mode: overwrite
+
+    transform_module: taxi_zone_lookup
+
+    schema:
+      known_columns: []
+      evolution_columns: []
+      on_unexpected_column: drop
+
+    validation:
+      rules:
+        - name: type_conformance
+          type: cast_errors
+        - name: incomplete
+          type: not_null
+          columns: [location_id, borough, zone, service_zone]
+        - name: duplicate_in_batch
+          type: unique
+          columns: $primary_key
+          keep: none
+        - name: invalid_location_id
+          type: valid_range
+          column: location_id
+          min: 1

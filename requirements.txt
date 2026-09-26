@@ -7,3 +7,4 @@ pytest>=8.0
 jupyter>=1.0
 matplotlib>=3.8
 tabulate
+setuptools   # provides distutils, needed by pyspark 3.5 toPandas() on Python 3.12
