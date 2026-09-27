@@ -46,3 +46,12 @@ Run the platform in the following order to reproduce the results:
 * Design of analytical queries (Task 1): `notebooks/week2/run_analytics.ipynb`
 * Optimisation and Benchmarks (Tasks 2,3 and 5): `notebooks/week2/optimize_query_&_benchmarking.ipynb`
 * Materialization of Analytical Data Products (Task 4): `notebooks/week2/run_reusable_products.ipynb`
+
+## Week 3: Operating and Maintaining the Urban Data Platform
+
+* Week 3 expands the platform by handling incremental data updates, keeping the analytical data products consistent under schema evolution, monitoring every pipeline run, extending the validation framework, and evaluating the production readiness of the platform.
+* Run the notebooks in the order below; Week 1 ingestion and integration and the Week 2 data products must have been run first.
+* Generation and ingestion of incremental update datasets (Task 1): `notebooks/week3/generate_incremental_updates.ipynb`
+* Analytical consistency and platform monitoring (Tasks 2 and 3): `notebooks/week3/maintain_analytical_consistency.ipynb`
+* Extended data validation framework (Task 4): `notebooks/week3/expanded_ingestion.ipynb`, with validation rules and schema policies in `config/datasets-expanded.yaml`
+* Evaluation of the platform (Task 5): `notebooks/week3/evaluate_platform.ipynb`, results written to `reports/week3_evaluation/` 
