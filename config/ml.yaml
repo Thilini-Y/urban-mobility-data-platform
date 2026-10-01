@@ -18,6 +18,7 @@ ml:
 
   data_start: "2024-01-01 05:00:00"
   data_end: "2024-04-01 04:00:00"
+  #data_end: "2024-04-16 00:00:00"    #for incremental check with april data generated in week 3
 
   # Zone filtering
   exclude_zone_ids: [264, 265]           # "Unknown" / "N/A" zones in the TLC lookup

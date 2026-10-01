@@ -50,6 +50,10 @@ PLATFORM_CODE = ["src/common", "src/ingestion", "src/transformation", "src/integ
 def _resolve(path: str) -> str:
     return path if os.path.isabs(path) else os.path.join(PROJECT_ROOT, path)
 
+def _deterministic_layout(df: DataFrame, cfg: MLConfig, n_partitions: int = 8) -> DataFrame:
+    return (df.repartition(n_partitions, cfg.entity_column, cfg.time_column)
+              .sortWithinPartitions(cfg.time_column, cfg.entity_column))
+
 
 def build_regressor(cfg: MLConfig):
     name = cfg.model.algorithm
@@ -171,6 +175,7 @@ def train_model(spark: SparkSession, cfg: Optional[MLConfig] = None,
 
     with tracker.stage("load_train"):
         data = dataset if dataset is not None else load_training_dataset(spark, cfg)
+        data = _deterministic_layout(data, cfg)
         train = data.filter(F.col(SPLIT_COLUMN) == TRAIN).cache()
         training_rows = train.count()
     if training_rows == 0:
