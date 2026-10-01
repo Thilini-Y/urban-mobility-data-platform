@@ -1,0 +1,114 @@
+ml:
+  problem: hourly_zone_demand
+
+  paths:
+    gold_table: data/delta/gold/integrated_taxi_trips
+    training_dataset: data/delta/ml/training_dataset
+    manifest: reports/week4/training_dataset_manifest.json
+
+    feature_dataset: data/ml/feature_dataset
+    feature_pipeline: models/feature_pipeline
+    feature_summary: reports/week4/feature_pipeline_summary.json
+
+  # Prediction problem: number of taxi pickups per pickup zone per hour
+  target: trip_count
+  entity_column: pickup_location_id
+  time_column: hour_ts
+  local_timezone: America/New_York
+
+  data_start: "2024-01-01 05:00:00"
+  data_end: "2024-04-01 04:00:00"
+
+  # Zone filtering
+  exclude_zone_ids: [264, 265]           # "Unknown" / "N/A" zones in the TLC lookup
+  min_zone_trips: 100                    # zones with fewer trips in the TRAIN period are dropped
+
+  # Time-series history features (lagged demand of the same zone)
+  lag_hours: [1, 24, 168]                # 1h ago, same hour yesterday, same hour last week
+  rolling_mean_hours: [24]               # mean demand over the previous 24 hours
+
+  drop_incomplete_history: true
+
+  # Contextual features taken from the integrated Gold table
+  context:
+    weather:                             # constant for every trip in an hour
+      - weather_temperature
+      - weather_relative_humidity
+      - weather_precipitation
+      - weather_wind_speed
+      - weather_pressure
+      - weather_condition_code
+    air_quality:                         # constant per (borough, hour)
+      - air_quality_pm25
+      - air_quality_station_count
+    zone_attributes:                     # static per zone
+      - pickup_zone
+      - pickup_borough
+
+  # Chronological split
+  split:
+    train_ratio: 0.70
+    validation_ratio: 0.15               # test = remainder
+    # optional explicit cut-offs (UTC); when set they override the ratios
+    # train_end: "2024-03-10 00:00:00"
+    # validation_end: "2024-03-25 00:00:00"
+
+
+  features:
+    # generated from time_column, in local_timezone.
+    temporal: [hour_of_day, day_of_week, month, is_weekend, is_holiday]
+    # temporal features encoded as sin/cos instead of a raw number
+    cyclical:
+      hour_of_day: 24
+      day_of_week: 7
+
+    # public holidays come from a calendar library, not from hard-coded dates
+    holiday_calendar:
+      country: US
+      subdivision: NY
+      extra_dates: [ ]
+
+    # location / weather features that are one-hot encoded
+    categorical: [pickup_location_id, pickup_borough, weather_condition_code]
+
+    # numeric features from the training dataset (lag / rolling columns are added automatically)
+    numeric:
+      - weather_temperature
+      - weather_relative_humidity
+      - weather_precipitation
+      - weather_wind_speed
+      - weather_pressure
+      - air_quality_pm25
+
+    # missing-value handling; every filled column also gets a <name>_missing 0/1 flag
+    imputation:
+      zero_fill: [weather_precipitation]
+      group_mean_fill:
+        columns: [air_quality_pm25]
+        group_by: [hour_ts]
+      # anything still missing is filled with the training-set median
+
+    scale: true
+
+
+  model:
+    algorithm: gbt
+    params:
+      maxIter: 50
+      maxDepth: 6
+      stepSize: 0.1
+      subsamplingRate: 0.8
+      seed: 42
+    directory: models/demand_model
+    metrics_report: reports/week4/model_metrics.json
+    feature_sources:
+      weather_: weather
+      air_quality_: air_quality
+      demand_: tripdata (demand history)
+      pickup_location_id: taxi_zone_lookup
+      pickup_borough: taxi_zone_lookup
+      hour_of_day: calendar (from trip timestamps)
+      day_of_week: calendar (from trip timestamps)
+      month: calendar (from trip timestamps)
+      is_weekend: calendar (from trip timestamps)
+      is_holiday: calendar (from trip timestamps)
