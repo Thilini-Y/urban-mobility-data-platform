@@ -55,3 +55,12 @@ Run the platform in the following order to reproduce the results:
 * Analytical consistency and platform monitoring (Tasks 2 and 3): `notebooks/week3/maintain_analytical_consistency.ipynb`
 * Extended data validation framework (Task 4): `notebooks/week3/expanded_ingestion.ipynb`, with validation rules and schema policies in `config/datasets-expanded.yaml`
 * Evaluation of the platform (Task 5): `notebooks/week3/evaluate_platform.ipynb`, results written to `reports/week3_evaluation/` 
+
+## Week 4: Building Machine Learning Pipelines on the Urban Data Platform
+
+* Week 4 uses the platform for predictive analytics: it predicts hourly taxi demand per pickup zone with a Spark MLlib pipeline (gradient-boosted trees), built from the integrated Gold table and driven by `config/ml.yaml`.
+* Run the notebooks in the order below; Week 1 ingestion and integration must have been run first.
+* Generation of the training dataset (Task 1): `notebooks/week4/tran_dataset.ipynb`. Writes the Delta table `data/delta/ml/training_dataset` (train/validation/test splits) and the manifest `reports/week4/training_dataset_manifest.json`.
+* Reusable feature engineering pipeline (Task 2): `notebooks/week4/feature_pipeline.ipynb`. Writes the feature dataset to `data/ml/feature_dataset` and the fitted pipeline to `models/feature_pipeline`. Features, missing-value rules and scaling are set in the `features` section of `config/ml.yaml`.
+* Training and evaluation of the model (Task 3): `notebooks/week4/ml_pipeline.ipynb`. Each run is saved under `models/demand_model/<run_id>/` (pipeline + `run.json` with metrics, timings and reproducibility fingerprints); the latest run is recorded in `models/demand_model/latest.json` and its metrics in `reports/week4/model_metrics.json`. The algorithm and its parameters are set in the `model` section of `config/ml.yaml`.
+* Comparison of the raw-data and platform approaches (Task 4): `notebooks/week4/task4_approach_comparison.ipynb`, results written to `reports/week4/comparison/`. Approach A also needs the original raw files in `data/raw/`; outputs go to separate `comparison` folders, so the main Week 4 artifacts are not overwritten.
